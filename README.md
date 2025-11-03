@@ -1,4 +1,6 @@
-# TerraScope
+![CI](https://github.com/LeCafeCloud/terrascope/actions/workflows/ci.yml/badge.svg)
+
+# Terrascope
 
 A web app that turns your **Terraform state into an interactive constellation**.  
 Resources become planets, modules become galaxies, and dependencies form orbital links.
@@ -36,6 +38,7 @@ The goal is to learn, explain, and audit infra relationships through an intuitiv
 > Feel free to change names, visuals, or rules.
 
 ### Visual Mappings
+
 | Terraform Concept | TerraScope Metaphor | Example Visualization |
 |-------------------|---------------------|-----------------------|
 | Provider          | Star type           | Color or spectrum per provider |
@@ -46,12 +49,14 @@ The goal is to learn, explain, and audit infra relationships through an intuitiv
 | Drift or taint    | Storm cloud         | Particle effect or outline |
 
 ### Views
+
 - **Constellation view**: force-directed graph of resources and modules  
 - **Orbit view**: module-centric “solar system” where resources orbit modules  
 - **Timeline**: play changes across commits or releases  
 - **Policy lens**: highlight resources violating tagging or compliance rules
 
 ### Interactions
+
 - Click to open a resource panel: type, provider, attributes (sanitized), lifecycle, dependencies  
 - Filter by provider, module, tag, environment  
 - Search bar with fuzzy search on addresses (`module.app.aws_s3_bucket.assets`)  
@@ -92,7 +97,6 @@ Terraform State (local upload or remote backend)
 => Frontend (React/Svelte + Three.js/D3)
 => Interactive Constellation UI
 ```
-
 
 ---
 

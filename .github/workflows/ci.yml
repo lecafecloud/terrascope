@@ -9,34 +9,57 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        component: [backend, frontend]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Build Backend docker image
+      - name: Build ${{ matrix.component }} Docker image
         uses: docker/build-push-action@v6
         with:
-          context: ./backend
-          file: ./backend/Dockerfile
+          context: ./${{ matrix.component }}
+          file: ./${{ matrix.component }}/Dockerfile
           push: false
-          tags: terrascope/terrascope-api:${{ github.sha }}
+          tags: terrascope/terrascope-${{ matrix.component }}:${{ github.sha }}
 
   test:
-    defaults:
-      run:
-        working-directory: backend
     needs: build
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        component: [backend, frontend]
+    defaults:
+      run:
+        working-directory: ${{ matrix.component }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
 
       - name: Install Go
+        if: matrix.component == 'backend'
         uses: actions/setup-go@v6
         with:
           go-version-file: "backend/go.mod"
           cache-dependency-path: "backend/go.sum"
 
-      - name: Run tests
-        run: |
-          go test -v ./...
+      - name: Install Node.js
+        if: matrix.component == 'frontend'
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: "frontend/package-lock.json"
+
+      - name: Install frontend dependencies
+        if: matrix.component == 'frontend'
+        run: npm ci
+
+      - name: Run backend tests
+        if: matrix.component == 'backend'
+        run: go test -v ./...
+
+      - name: Run frontend tests
+        if: matrix.component == 'frontend'
+        run: npm test

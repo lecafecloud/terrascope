@@ -1,27 +1,27 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: terrascope-backend
+  name: terrascope-frontend
   namespace: terrascope
   labels:
-    app: terrascope-backend
-    component: api
+    app: terrascope-frontend
+    component: ui
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: terrascope-backend
+      app: terrascope-frontend
   template:
     metadata:
       labels:
-        app: terrascope-backend
-        component: api
+        app: terrascope-frontend
+        component: ui
     spec:
       containers:
-        - name: terrascope-api
-          image: ghcr.io/LeCafeCloud/terrascope-backend:latest # use a specific version instead of latest in the future
+        - name: terrascope-ui
+          image: ghcr.io/LeCafeCloud/terrascope-frontend:latest # use a specific version instead of latest in the future
           ports:
-            - containerPort: 8080
+            - containerPort: 3000
               name: http
           resources:
             requests:
@@ -33,12 +33,12 @@ spec:
           livenessProbe:
             httpGet:
               path: /health
-              port: 8080
+              port: 3000
             initialDelaySeconds: 30
             periodSeconds: 10
           readinessProbe:
             httpGet:
               path: /health
-              port: 8080
+              port: 3000
             initialDelaySeconds: 5
             periodSeconds: 5

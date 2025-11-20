@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: terrascope-frontend
+  namespace: terrascope
+spec:
+  rules:
+    - host: changme.example
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: terrascope-frontend
+                port:
+                  number: 80

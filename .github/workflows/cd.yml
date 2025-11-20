@@ -12,6 +12,9 @@ jobs:
     permissions:
       contents: read
       packages: write
+    strategy:
+      matrix:
+        component: [backend, frontend]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -23,12 +26,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Docker image
+      - name: Build and push ${{ matrix.component }} Docker image
         uses: docker/build-push-action@v6
         with:
-          context: ./backend
-          file: ./backend/Dockerfile
+          context: ./${{ matrix.component }}
+          file: ./${{ matrix.component }}/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/terrascope-api:latest
+            ghcr.io/${{ github.repository_owner }}/terrascope-${{ matrix.component }}:latest
           # A new line will be added to push image with a specific version

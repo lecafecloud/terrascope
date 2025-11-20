@@ -12,7 +12,7 @@ RUN npm ci --omit=dev
 
 FROM alpine:3.22 AS final
 WORKDIR /app
-RUN apk add --no-cache nodejs=22.16.0-r2 npm=11.3.0-r1 && \
+RUN apk add --no-cache nodejs npm && \
     npm install -g serve@14.2.5
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/build/ ./build

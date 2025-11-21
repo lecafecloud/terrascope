@@ -231,7 +231,7 @@ export default function ConstellationView({
                 material.emissiveIntensity = 0.5;
             }
         });
-    }, [selectedNodeId]);
+    }, [selectedNodeId, graph, filters]);
 
     useEffect(() => {
         const renderer = rendererRef.current;

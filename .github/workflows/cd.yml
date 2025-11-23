@@ -4,7 +4,10 @@ on:
   push:
     branches:
       - master
-  pull_request: # testing purpose
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_OWNER: lecafecloud
 
 jobs:
   deploy:
@@ -15,14 +18,32 @@ jobs:
     strategy:
       matrix:
         component: [backend, frontend]
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tag }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Generate image metadata
+        id: meta
+        run: |
+          git fetch --tags
+
+          GIT_TAG=$(git describe --tags --abbrev=0 2>/dev/null)
+          TAG=${GIT_TAG#v}
+
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "Image will be tagged as: ${TAG}"
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
@@ -33,5 +54,108 @@ jobs:
           file: ./${{ matrix.component }}/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/terrascope-${{ matrix.component }}:latest
-          # A new line will be added to push image with a specific version
+            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/terrascope-${{ matrix.component }}:${{ steps.meta.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/terrascope-${{ matrix.component }}:latest
+          cache-from: type=gha,scope=${{ matrix.component }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.component }}
+          provenance: false
+
+      - name: Scan ${{ matrix.component }} image for vulnerabilities
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/terrascope-${{ matrix.component }}:${{ steps.meta.outputs.tag }}
+          format: "sarif"
+          output: "trivy-${{ matrix.component }}-results.sarif"
+          severity: "CRITICAL,HIGH"
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: "trivy-${{ matrix.component }}-results.sarif"
+          category: "trivy-${{ matrix.component }}-production"
+
+  update-k8s-manifests:
+    needs: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GITOPS_TOKEN }}
+          fetch-depth: 0
+
+      - name: Update Backend deployment manifest
+        run: |
+          IMAGE_TAG="${{ needs.deploy.outputs.image-tag }}"
+          NEW_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/terrascope-backend:${IMAGE_TAG}"
+
+          sed -i "s|image: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/terrascope-backend:.*|image: ${NEW_IMAGE}|g" \
+          infra/k8s/deployments/backend.yml
+
+          echo "✅ Updated backend deployment to: ${NEW_IMAGE}"
+
+      - name: Update Frontend deployment manifest
+        run: |
+          IMAGE_TAG="${{ needs.deploy.outputs.image-tag }}"
+          NEW_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/terrascope-frontend:${IMAGE_TAG}"
+
+          sed -i "s|image: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/terrascope-frontend:.*|image: ${NEW_IMAGE}|g" \
+            infra/k8s/deployments/frontend.yml
+
+          echo "✅ Updated frontend deployment to: ${NEW_IMAGE}"
+
+      - name: Verify manifest changes
+        run: |
+          echo "=== Backend Deployment ==="
+          grep "image:" infra/k8s/deployments/backend.yml
+          echo ""
+          echo "=== Frontend Deployment ==="
+          grep "image:" infra/k8s/deployments/frontend.yml
+
+      - name: Commit and push manifest updates
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add infra/k8s/deployments/
+
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+
+          git commit -m "🚀 Deploy: Update images to ${{ needs.deploy.outputs.image-tag }} [skip ci]
+
+          - Backend: terrascope-backend:${{ needs.deploy.outputs.image-tag }}
+          - Frontend: terrascope-frontend:${{ needs.deploy.outputs.image-tag }}
+
+          Source commit: ${{ github.sha }}
+          Triggered by: ${{ github.actor }}
+          Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          git push origin master
+
+      - name: Create deployment summary
+        uses: actions/github-script@v8
+        with:
+          script: |
+            github.rest.repos.createCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha,
+              body: `🚀 **Terrascope Deployment Initiated**
+              
+              **Image Tag:** \`${{ needs.deploy.outputs.image-tag }}\`
+              
+              **Components Updated:**
+              - 🔹 Backend: \`ghcr.io/lecafecloud/terrascope-backend:${{ needs.deploy.outputs.image-tag }}\`
+              - 🔹 Frontend: \`ghcr.io/lecafecloud/terrascope-frontend:${{ needs.deploy.outputs.image-tag }}\`
+              
+              **ArgoCD Status:**
+              ArgoCD will automatically detect changes and sync within 3 minutes (default polling interval).
+
+              **Deployment Commit:** Will appear as next commit in this repository`
+            })

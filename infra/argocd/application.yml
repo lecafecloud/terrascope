@@ -3,18 +3,17 @@ kind: Application
 metadata:
   name: terrascope
   namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
-
   source:
-    repoURL: https://github.com/LeCafeCloud/terrascope.git
+    repoURL: https://github.com/lecafecloud/terrascope.git
     targetRevision: master
     path: infra/k8s
-
   destination:
     server: https://kubernetes.default.svc
     namespace: terrascope
-
   syncPolicy:
     automated:
       prune: true
@@ -22,10 +21,15 @@ spec:
       allowEmpty: false
     syncOptions:
       - CreateNamespace=true
-
+      - PruneLast=true
     retry:
       limit: 5
       backoff:
         duration: 5s
         factor: 2
         maxDuration: 3m
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas

@@ -17,9 +17,11 @@ spec:
         app: terrascope-backend
         component: api
     spec:
+      imagePullSecrets:
+        - name: ghcr-secret
       containers:
         - name: terrascope-api
-          image: ghcr.io/LeCafeCloud/terrascope-backend:latest # use a specific version instead of latest in the future
+          image: ghcr.io/lecafecloud/terrascope-backend:latest # use a specific version instead of latest in the future
           ports:
             - containerPort: 8080
               name: http

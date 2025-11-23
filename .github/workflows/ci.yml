@@ -3,6 +3,10 @@ name: CI
 on:
   pull_request:
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_OWNER: lecafecloud
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -56,13 +60,34 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build ${{ matrix.component }} Docker image
         uses: docker/build-push-action@v6
         with:
           context: ./${{ matrix.component }}
           file: ./${{ matrix.component }}/Dockerfile
           push: false
-          tags: terrascope/terrascope-${{ matrix.component }}:${{ github.sha }}
+          load: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/terrascope-${{ matrix.component }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.component }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.component }}
+
+      - name: Scan ${{ matrix.component }} image for vulnerabilities
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/terrascope-${{ matrix.component }}:${{ github.sha }}
+          format: "sarif"
+          output: "trivy-${{ matrix.component }}-results.sarif"
+          severity: "CRITICAL,HIGH"
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: "trivy-${{ matrix.component }}-results.sarif"
+          category: "trivy-${{ matrix.component }}"
 
   test:
     needs: build
@@ -98,8 +123,24 @@ jobs:
 
       - name: Run backend tests
         if: matrix.component == 'backend'
-        run: go test -v ./...
+        run: go test -v -race -coverprofile=coverage.out ./...
 
       - name: Run frontend tests
         if: matrix.component == 'frontend'
         run: npm run test:run
+
+      - name: Upload backend coverage
+        if: matrix.component == 'backend'
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage.out
+          retention-days: 7
+
+      - name: Upload frontend coverage
+        if: matrix.component == 'frontend' && hashFiles('frontend/coverage/**') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/
+          retention-days: 7

@@ -13,9 +13,9 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     permissions:
+      security-events: write
       contents: read
       packages: write
-      security-events: write
     strategy:
       matrix:
         component: [backend, frontend]

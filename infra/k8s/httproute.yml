@@ -1,0 +1,25 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: terrascope
+  namespace: terrascope
+spec:
+  parentRefs:
+    - name: terrascope-gateway
+  hostnames:
+    - terrascope.cloud
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api
+      backendRefs:
+        - name: terrascope-backend
+          port: 80
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: terrascope-frontend
+          port: 80
